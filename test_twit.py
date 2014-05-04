@@ -154,6 +154,28 @@ class SharedTestMixin(object):
         self.repo.commit('another commit')
         self.assert_clean_workdir()
 
+    def test_rev_parse(self):
+        self.commit_file('file1', 'foo')
+        commit1 = _git('rev-parse', 'HEAD')
+        self.assertEqual(commit1, self.repo.rev_parse('HEAD'))
+        self.assertEqual(commit1, self.repo.rev_parse('master'))
+        self.assertEqual('', self.repo.rev_parse('foo'))
+        self.assertEqual('', self.repo.rev_parse('HEAD^'))
+
+    def test_commit_info(self):
+        self.write_file('file1', 'foo')
+        _git('add', 'file1')
+        _git('commit', '-m', 'my message')
+        commit1 = _git('rev-parse', 'HEAD')
+        info = self.repo.commit_info('HEAD')
+        self.assertEqual(info.message.rstrip(), 'my message')
+        self.write_file('file2', 'foo')
+        _git('add', 'file2')
+        _git('commit', '-m', 'anothr message')
+        info2 = self.repo.commit_info('HEAD')
+        self.assertEqual(info2.message.rstrip(), 'anothr message')
+        self.assertEqual([commit1], info2.parents)
+
     def test_save(self):
         self.write_file('file1')
         self.repo.save()

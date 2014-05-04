@@ -6,6 +6,7 @@ import sys
 import time
 import subprocess
 import contextlib
+import collections
 
 import click
 
@@ -24,6 +25,9 @@ except ImportError:
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 
+CommitInfo = collections.namedtuple('CommitInfo',
+        ('message', 'time', 'parents'))
+CommitInfo.__doc__ = """Details about a commit."""
 
 class TwitError(Exception):
     """Generic error for Twit."""
@@ -53,7 +57,7 @@ class CannotFindGit(GitError):
     """Script could not locate the git executable."""
 
 
-def _git(*args):
+def _git(*args, strip=True):
     """Delegate to the Git executable."""
     try:
         proc = subprocess.Popen(('git',) + args, stdout=subprocess.PIPE,
@@ -68,7 +72,9 @@ def _git(*args):
         stdout = stdout.decode()
     if 'fatal: Not a git repository' in stdout:
         raise NotARepository("current directory is not part of a repository")
-    return stdout.rstrip()
+    if strip:
+        stdout = stdout.rstrip()
+    return stdout
 
 
 @contextlib.contextmanager
@@ -179,6 +185,33 @@ class GitExeRepo(object):
             if ref:
                 _git('update-ref', ref, commit)
 
+    def rev_parse(self, ref):
+        """Return the oid of the reference, or an empty string if error."""
+        with _cd(self.path):
+            return _git('rev-parse', '--verify', '-q', ref)
+
+    def commit_info(self, ref):
+        """Return info about a given commit."""
+        oid = _git('rev-parse', '--verify', '-q', ref)
+        if not oid:
+            raise InvalidRef
+        raw_commit = _git('cat-file', '-p', oid, strip=False)
+
+        paragraphs = raw_commit.split('\n\n')
+        lines = paragraphs[0].split('\n')
+        message = '\n\n'.join(paragraphs[1:])
+        tree = lines.pop(0).split(' ')[1]
+        parents = []
+        while lines[0].startswith('parent'):
+            parent = lines.pop(0).split(' ')[1]
+            parents.append(parent)
+        raw_author = lines.pop(0)
+        author_match = re.match('^.*? (.*) (\d+) .*$', raw_author)
+        author, author_timestamp = author_match.groups()
+
+        return CommitInfo(message=message,
+                          time=author_timestamp,
+                          parents=parents)
 
 class PyGit2Repo(object):
     """Git repository backed by pygit2."""
@@ -284,6 +317,22 @@ class PyGit2Repo(object):
             ref = self.git.lookup_reference('HEAD').target
         self.git.create_commit(ref, author, author, message, tree, parents)
 
+    def rev_parse(self, ref):
+        """Return the oid of the reference, or an empty string if error."""
+        try:
+            return self.git.revparse_single(ref).id.hex
+        except KeyError:
+            return ''
+
+    def commit_info(self, ref):
+        """Return info about a given commit."""
+        oid = self.rev_parse(ref)
+        if not oid:
+            raise InvalidRef("no such commit")
+        commit = self.git.get(oid)
+        return CommitInfo(message=commit.message,
+                          time=commit.author.time,
+                          parents=[id.hex for id in commit.parent_ids])
 
 class TwitMixin(object):
     """Non-backend-specific Twit methods."""
