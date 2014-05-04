@@ -63,6 +63,21 @@ class SharedTestMixin(object):
         with self.assertRaises(DetachedHead):
             self.repo.current_branch
 
+    def test_detached_head(self):
+        self.assertFalse(self.repo.detached_head)
+        self.commit_file('README')
+        self.assertFalse(self.repo.detached_head)
+        commit = _git('rev-parse', 'HEAD')
+        _git('checkout', commit)
+        self.assertTrue(self.repo.detached_head)
+
+    def test_unborn(self):
+        self.assertTrue(self.repo.unborn)
+        _git('checkout', '-b', 'foo')
+        self.assertTrue(self.repo.unborn)
+        self.commit_file('README')
+        self.assertFalse(self.repo.unborn)
+
     def test_refs(self):
         self.commit_file('README')
         self.assertItemsEqual(['refs/heads/master'], self.repo.refs)
@@ -134,8 +149,6 @@ class SharedTestMixin(object):
         self.assertEqual(contents, 'original')
 
     def test_safe_checkout(self):
-        # TODO: smart handling of unborn branches
-        # self.repo.safe_checkout('master')
         self.commit_file('file1', 'foo')
         commit1 = _git('rev-parse', 'HEAD')
         self.repo.safe_checkout('master')
@@ -153,6 +166,27 @@ class SharedTestMixin(object):
         _git('add', 'file2')
         self.repo.commit('another commit')
         self.assert_clean_workdir()
+
+    def test_reset(self):
+        self.commit_file('file1', 'original')
+        commit1 = _git('rev-parse', 'HEAD')
+        self.write_file('file1', 'changes')
+        self.write_file('file2')
+        self.repo.reset('HEAD', reset_type='hard')
+        self.assertTrue(os.path.exists('file2'))
+        with open('file1') as rfile:
+            contents = rfile.read()
+        self.assertEqual(contents, 'original')
+        _git('add', 'file2')
+        self.repo.reset('HEAD', reset_type='hard')
+        self.assertFalse(os.path.exists('file2'))
+        self.write_file('file1', 'changes')
+        self.write_file('file2')
+        _git('add', 'file2')
+        self.repo.reset('HEAD')
+        self.assertTrue(os.path.exists('file2'))
+        with open('file1') as rfile:
+            contents = rfile.read()
 
     def test_rev_parse(self):
         self.commit_file('file1', 'foo')
@@ -183,6 +217,54 @@ class SharedTestMixin(object):
         refs = _git('for-each-ref', '--format', '%(refname)').split('\n')
         ref_folders = [os.path.dirname(ref) for ref in refs]
         self.assertIn('refs/hidden/tags/twit', ref_folders)
+
+    def test_set_head(self):
+        self.commit_file('file1')
+        self.repo.set_head('master')
+        self.assertEqual('refs/heads/master', _git('symbolic-ref', '-q', 'HEAD'))
+        _git('branch', 'foo')
+        self.repo.set_head('foo')
+        self.assertEqual('refs/heads/foo', _git('symbolic-ref', '-q', 'HEAD'))
+
+    def test_open_snapshot(self):
+        self.write_file('file1')
+        snapshot = self.repo.save()
+        os.remove('file1')
+        self.repo.open_snapshot(snapshot)
+        self.assertTrue(os.path.exists('file1'))
+        self.commit_file('file2', 'original')
+        self.write_file('file2', 'changes')
+        snapshot2 = self.repo.save()
+        _git('add', '--all', '.')
+        _git('reset', '--hard', 'HEAD')
+        self.repo.discard_all()
+        self.repo.open_snapshot(snapshot2)
+        self.assertTrue(os.path.exists('file1'))
+        with open('file2') as rfile:
+            contents = rfile.read()
+        self.assertEqual('changes', contents)
+
+    def test_open(self):
+        self.write_file('file1')
+        snapshot = self.repo.save()
+        os.remove('file1')
+        self.repo.open(snapshot)
+        self.assertTrue(os.path.exists('file1'))
+        self.commit_file('file2', 'original')
+        self.write_file('file2', 'changes')
+        snapshot2 = self.repo.save()
+        _git('add', '--all', '.')
+        _git('reset', '--hard', 'HEAD')
+        self.repo.discard_all()
+        self.repo.open(snapshot2)
+        self.assertTrue(os.path.exists('file1'))
+        with open('file2') as rfile:
+            contents = rfile.read()
+        self.assertEqual('changes', contents)
+        _git('add', '--all', '.')
+        _git('reset', '--hard', 'HEAD')
+        self.repo.open('master')
+        self.assertEqual('refs/heads/master', _git('symbolic-ref', '-q', 'HEAD'))
 
 # Use the GitRepoTestMixin to test GitExeRepo
 class GitExeRepoTestCase(unittest.TestCase, SharedTestMixin):
