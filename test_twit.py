@@ -5,8 +5,8 @@ import shutil
 import tempfile
 import unittest
 
-from twit import (GitExeTwitRepo, DetachedHead, DirtyWorkTree, InvalidRef, _cd,
-        _git)
+from twit import (GitExeTwitRepo, PyGit2TwitRepo, DetachedHead, DirtyWorkTree,
+        InvalidRef, _cd, _git)
 
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
@@ -189,5 +189,13 @@ class GitExeRepoTestCase(unittest.TestCase, SharedTestMixin):
     def setUp(self):
         self.create_temp_repo()
         self.repo = GitExeTwitRepo.from_cwd()
+    def tearDown(self):
+        self.cleanup_temp_repo()
+
+# Use the GitRepoTestMixin to test PyGit2Repo
+class PyGit2RepoTestCase(unittest.TestCase, SharedTestMixin):
+    def setUp(self):
+        self.create_temp_repo()
+        self.repo = PyGit2TwitRepo.from_cwd()
     def tearDown(self):
         self.cleanup_temp_repo()
