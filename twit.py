@@ -18,14 +18,9 @@ except ImportError:
     GITHUB3 = False
 
 PY2 = sys.version_info[0] == 2
-PY3 = sys.version_info[0] == 3
-
-if PY2:
-    from future import unicode_literals
 
 CommitInfo = collections.namedtuple('CommitInfo',
         ('message', 'time', 'parents', 'tree'))
-CommitInfo.__doc__ = """Details about a commit."""
 
 class TwitError(Exception):
     """Generic error for Twit."""
