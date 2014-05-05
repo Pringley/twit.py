@@ -63,8 +63,8 @@ class CannotFindGit(GitError):
     """Script could not locate the git executable."""
 
 
-def _git(*args, strip=True):
-    """Delegate to the Git executable."""
+def _git_nostrip(*args):
+    """Delegate to the Git executable, returning unstripped output."""
     try:
         proc = subprocess.Popen(('git',) + args, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)
@@ -78,10 +78,11 @@ def _git(*args, strip=True):
         stdout = stdout.decode()
     if 'fatal: Not a git repository' in stdout:
         raise NotARepository("current directory is not part of a repository")
-    if strip:
-        stdout = stdout.rstrip()
     return stdout
 
+def _git(*args):
+    """Delegate to the Git executable."""
+    return _git_nostrip(*args).rstrip()
 
 class _cd(object):
     """Context manager to temporarily change directory."""
@@ -236,7 +237,7 @@ class GitExeRepo(object):
         oid = _git('rev-parse', '--verify', '-q', ref)
         if not oid:
             raise InvalidRef
-        raw_commit = _git('cat-file', '-p', oid, strip=False)
+        raw_commit = _git_nostrip('cat-file', '-p', oid)
 
         paragraphs = raw_commit.split('\n\n')
         lines = paragraphs[0].split('\n')
