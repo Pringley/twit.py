@@ -313,19 +313,34 @@ class TwitMixin(object):
         except ValueError:
             raise InvalidSnapshot('message is invalid json')
         branch = sinfo.get('branch', None)
+
+        # First, checkout the snapshot.
         self.safe_checkout(oid)
-        if parent is not None:
-            self.reset(parent)
-        else:
+
+        if parent is None:
+            # If the snapshot was taken on an unborn branch, set HEAD to a
+            # temporary branch and clear the index.
+            self.set_head('twit/snapshot/unborn' + cinfo.time, force=True)
             self.unstage_all()
-            self.set_head('master', force=True)
+        else:
+            # Otherwise, simply reset HEAD and the index to the commit that the
+            # snapshot was taken from.
+            self.reset(parent)
+
         if branch is not None:
             branch_commit = self.rev_parse(branch)
-            if parent is not None and branch_commit == parent:
+            if parent is None and not branch_commit:
+                # If the snapshot was taken on an unborn branch and the branch
+                # is still unborn, then set the HEAD to point to that branch.
+                self.set_head(branch, force=True)
+            elif parent is not None and branch_commit == parent:
+                # If the snapshot was taken on a branch that has not been
+                # updated, set the HEAD to point to that branch.
                 self.set_head(branch)
             else:
-                pass # detached head for now
-                     # TODO: attempt to auto-rebase?
+                # If the snapshot's original branch points to a different
+                # commit, enter detached HEAD mode.
+                pass
 
     def open(self, ref):
         """Open a branch, commit, or snapshot."""
