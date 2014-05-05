@@ -278,8 +278,10 @@ class TwitMixin(object):
     def save(self):
         """Save a snapshot of the working directory."""
         self.stage_all()
-        now = int(time.time())
-        ref = 'refs/hidden/tags/twit/{}'.format(now)
+        index = 1
+        while 'refs/hidden/tags/twit/{}'.format(index) in self.refs:
+            index += 1
+        ref = 'refs/hidden/tags/twit/{}'.format(index)
         try:
             branch = self.current_branch
         except DetachedHead:
@@ -290,7 +292,7 @@ class TwitMixin(object):
         })
         commit = self.commit(message, ref=ref)
         self.unstage_all()
-        return commit
+        return ref
 
     def open_snapshot(self, ref):
         """Open a Twit snapshot."""

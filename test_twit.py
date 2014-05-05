@@ -250,6 +250,7 @@ class SharedTestMixin(object):
         self.commit_file('file2', 'original')
         self.write_file('file2', 'changes')
         snapshot2 = self.repo.save()
+        self.assertNotEqual(snapshot, snapshot2)
         _git('add', '--all', '.')
         _git('reset', '--hard', 'HEAD')
         self.repo.discard_all()
