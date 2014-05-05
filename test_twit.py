@@ -153,6 +153,15 @@ class SharedTestMixin(object):
         with open('file1') as rfile:
             contents = rfile.read()
         self.assertEqual(contents, 'original')
+        self.write_file('file1', 'changes')
+        self.write_file('file2')
+        _git('add', '--all', '.')
+        _git('reset', '--hard', 'HEAD')
+        self.repo.discard_all()
+        self.assertFalse(os.path.exists('file2'))
+        with open('file1') as rfile:
+            contents = rfile.read()
+        self.assertEqual(contents, 'original')
 
     def test_safe_checkout(self):
         self.commit_file('file1', 'foo')
