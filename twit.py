@@ -5,6 +5,7 @@ import re
 import sys
 import time
 import json
+import datetime
 import subprocess
 import contextlib
 import collections
@@ -247,7 +248,7 @@ class GitExeRepo(object):
         author, author_timestamp = author_match.groups()
 
         return CommitInfo(message=message,
-                          time=author_timestamp,
+                          time=int(author_timestamp),
                           tree=tree,
                           parents=parents)
 
@@ -392,6 +393,17 @@ def open(revision):
     except InvalidRef:
         click.echo("Invalid revision specified.""")
         repo.open(snapshot)
+
+
+@main.command()
+def snapshots():
+    """Show a list of snapshots."""
+    repo = TwitRepo.from_cwd()
+    for snapshot in repo.snapshots:
+        oid = repo.rev_parse(snapshot)
+        info = repo.commit_info(snapshot)
+        click.echo('{} at {}'.format(oid[:6],
+            datetime.datetime.fromtimestamp(info.time)))
 
 @main.command('help')
 @click.argument('subcommand', required=False)
